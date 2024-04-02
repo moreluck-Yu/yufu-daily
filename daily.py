@@ -155,7 +155,7 @@ def make_poem():
         "，", " ").replace("。", " ").replace(".", " ")
     print(f'Processed Sentence: {sentence_processed}')
     image_url, image_comment = make_pic(sentence_processed)
-    poem_message = f'今日诗词和配图：{poem}\r\n\r\n{image_comment}'
+    poem_message = f'今日诗词和配图：\r\n{poem}\r\n\r\n{image_comment}'
 
     return image_url, poem_message
 
