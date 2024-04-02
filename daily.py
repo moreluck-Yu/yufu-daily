@@ -40,7 +40,7 @@ TODOIST_API = os.environ.get('TODOIST_API', '')
 # -------------
 
 # Message list
-MESSAGES = ['又到了新的一天了！']
+MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']
 
 
 # get today's weather
