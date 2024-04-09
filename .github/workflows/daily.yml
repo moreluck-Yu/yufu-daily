@@ -14,6 +14,8 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          retry: 3 # 重试 3 次,直到成功
+          
       - name: Set up Python
         uses: actions/setup-python@v1
         with:
@@ -26,7 +28,8 @@ jobs:
 
       - name: Generate new daily
         run: |
-          python daily.py 
+          python daily.py
+        
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TIAN_API_KEY: ${{ secrets.TIAN_API_KEY }}
