@@ -50,7 +50,7 @@ def make_weather(city_code):
     WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/{city_code}'
     # https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
-    WEATHER_TEMPLATE = "今天是{date} {week}，{city}的天气是{type}，{high}，{low}，空气质量指数{aqi}"
+    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气质量指数{aqi}"
 
     try:
         r = requests.get(WEATHER_API)
