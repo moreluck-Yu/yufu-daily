@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 import random
 
 from openai import OpenAI
@@ -128,22 +129,43 @@ def make_pic_from_openai(sentence):
 
 
 def make_pic_from_bing(sentence, bing_cookie):
-    # for bing image when dall-e3 open drop this function
-    i = ImageGen(bing_cookie)
-    images = i.get_images(sentence)
-    return images, "Image Powered by Bing DALL.E-3"
+    max_retries = 3
+    retry_delay = 5  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            i = ImageGen(bing_cookie)
+            images = i.get_images(sentence)
+            if images and len(images) > 0:
+                return images[0], "Image Powered by Bing DALL-E-3"
+            else:
+                print(f"No images generated on attempt {attempt + 1}")
+        except Exception as e:
+            print(f"Error on attempt {attempt + 1}: {str(e)}")
+        
+        if attempt < max_retries - 1:
+            delay = retry_delay + random.uniform(0, 2)  # Add some randomness to the delay
+            print(f"Retrying in {delay:.2f} seconds...")
+            time.sleep(delay)
+
+    return None, "Failed to generate image from Bing after multiple attempts"
 
 # try Dalle-3 from Bing first, then OpenAI Image API
 def make_pic(sentence):
-    if BING_COOKIE is not None and BING_COOKIE != '':
+    if BING_COOKIE:
         try:
-            images, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
-            return images[0], image_comment
+            image_url, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
+            if image_url:
+                return image_url, image_comment
+            else:
+                print('Bing image generation failed. Falling back to OpenAI.')
         except Exception as e:
-            print(f'Image generated from Bing failed: {type(e)}')
+            print(f'Image generation from Bing failed: {type(e)}')
             print(type(e), e)
+            print('Falling back to OpenAI.')
     else:
-        print('Bing Cookie is not set. Use OpenAI to generate Image')
+        print('Bing Cookie is not set. Using OpenAI to generate Image.')
+    
     image_url, image_comment = make_pic_from_openai(sentence)
     return image_url, image_comment
 
