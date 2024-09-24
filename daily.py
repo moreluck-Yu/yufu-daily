@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 import random
+import json  # 添加此行
 
 from openai import OpenAI
 
@@ -51,7 +52,7 @@ def make_weather(city_code):
     WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/{city_code}'
     # https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
-    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气质量指数{aqi}"
+    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气量指数{aqi}"
 
     try:
         r = requests.get(WEATHER_API)
@@ -137,7 +138,7 @@ def make_pic_from_bing(sentence, bing_cookie):
             i = ImageGen(bing_cookie)
             images = i.get_images(sentence)
             if images and len(images) > 0:
-                return images, "Image Powered by Bing DALL-E-3"  #多张图片
+                return images, "Images Powered by Bing DALL-E-3"
             else:
                 print(f"No images generated on attempt {attempt + 1}")
         except Exception as e:
@@ -148,7 +149,7 @@ def make_pic_from_bing(sentence, bing_cookie):
             print(f"Retrying in {delay:.2f} seconds...")
             time.sleep(delay)
 
-    return [], "Failed to generate image from Bing after multiple attempts"
+    return [], "Failed to generate images from Bing after multiple attempts"
 
 # try Dalle-3 from Bing first, then OpenAI Image API
 def make_pic(sentence):
@@ -248,6 +249,7 @@ def main():
     r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
                              tg_chat_id=TG_CHAT_ID, message=full_message, images=image_urls)
     print(r_json)
+
 
 if __name__ == "__main__":
     main()
