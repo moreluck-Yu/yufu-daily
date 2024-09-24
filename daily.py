@@ -137,7 +137,7 @@ def make_pic_from_bing(sentence, bing_cookie):
             i = ImageGen(bing_cookie)
             images = i.get_images(sentence)
             if images and len(images) > 0:
-                return images[0], "Image Powered by Bing DALL-E-3"
+                return images, "Image Powered by Bing DALL-E-3"  #多张图片
             else:
                 print(f"No images generated on attempt {attempt + 1}")
         except Exception as e:
@@ -148,15 +148,15 @@ def make_pic_from_bing(sentence, bing_cookie):
             print(f"Retrying in {delay:.2f} seconds...")
             time.sleep(delay)
 
-    return None, "Failed to generate image from Bing after multiple attempts"
+    return [], "Failed to generate image from Bing after multiple attempts"
 
 # try Dalle-3 from Bing first, then OpenAI Image API
 def make_pic(sentence):
     if BING_COOKIE:
         try:
-            image_url, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
-            if image_url:
-                return image_url, image_comment
+            image_urls, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
+            if image_urls:
+                return image_urls, image_comment
             else:
                 print('Bing image generation failed. Falling back to OpenAI.')
         except Exception as e:
@@ -167,7 +167,7 @@ def make_pic(sentence):
         print('Bing Cookie is not set. Using OpenAI to generate Image.')
     
     image_url, image_comment = make_pic_from_openai(sentence)
-    return image_url, image_comment
+    return [image_url], image_comment
 
 
 def make_poem():
@@ -176,18 +176,18 @@ def make_poem():
     sentence_processed = sentence.replace(
         "，", " ").replace("。", " ").replace(".", " ")
     print(f'Processed Sentence: {sentence_processed}')
-    image_url, image_comment = make_pic(sentence_processed)
+    image_urls, image_comment = make_pic(sentence_processed)
     poem_message = f'今日诗词和配图：\r\n{poem}\r\n\r\n{image_comment}'
 
-    return image_url, poem_message
+    return image_urls, poem_message
 
 # send message to telegram
 # send image with caption if the image arg is not None
 
 
-def send_tg_message(tg_bot_token, tg_chat_id, message, image=None):
+def send_tg_message(tg_bot_token, tg_chat_id, message, images=None):
     print(f'Sending to Chat {tg_chat_id}')
-    if image is None:
+    if images is None or len(images) == 0:
         try:
             request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMessage".format(
                 tg_bot_token=tg_bot_token)
@@ -200,15 +200,15 @@ def send_tg_message(tg_bot_token, tg_chat_id, message, image=None):
             return ""
     else:
         try:
-            photo_url = image
-            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendPhoto".format(
+            media_group = [{'type': 'photo', 'media': image} for image in images]
+            media_group[0]['caption'] = message  # 只在第一张图片上添加消息
+            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMediaGroup".format(
                 tg_bot_token=tg_bot_token)
-            request_data = {'chat_id': tg_chat_id,
-                            'photo': photo_url, 'caption': message}
+            request_data = {'chat_id': tg_chat_id, 'media': json.dumps(media_group)}
             response = requests.post(request_url, data=request_data)
             return response.json()
         except Exception as e:
-            print("Failed sending message to Telegram Bot with image.")
+            print("Failed sending message to Telegram Bot with images.")
             print(type(e), e)
             return ""
 
@@ -227,7 +227,7 @@ def main():
     print("Main started...")
     # default process the poem, image and weather.
     MESSAGES.append(make_weather(WEATHER_CITY_CODE))
-    image_url, poem_message = make_poem()
+    image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
 
     # --------
@@ -246,9 +246,8 @@ def main():
     print()
     print("Sending to Telegram...")
     r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
-                             tg_chat_id=TG_CHAT_ID, message=full_message, image=image_url)
+                             tg_chat_id=TG_CHAT_ID, message=full_message, images=image_urls)
     print(r_json)
-
 
 if __name__ == "__main__":
     main()
