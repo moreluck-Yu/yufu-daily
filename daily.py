@@ -22,7 +22,7 @@ TIAN_API_KEY = os.environ.get('TIAN_API_KEY', '')
 BING_COOKIE = os.environ.get('BING_COOKIE', '')  
 
 # Load the OPENAI_URL from GitHub Secrets  
-OPENAI_URL = os.environ.get('OPENAI_URL', 'https://api.openai.com/v1')  
+OPENAI_URL = os.environ.get('OPENAI_URL', 'https://api.chatytai.com/v1')  
 
 # Message list  
 MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']  
