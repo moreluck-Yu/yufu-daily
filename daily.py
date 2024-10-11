@@ -2,6 +2,9 @@ import argparse
 import os
 import time
 import random
+import json  # 添加此行
+
+from openai import OpenAI
 
 import pendulum
 import requests
@@ -15,6 +18,8 @@ load_dotenv()
 
 # required settings. config in github secrets
 # -------------
+# OpenAI: https://platform.openai.com/account/usage
+OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
 # Telegram Bot Token
 TG_BOT_TOKEN = os.environ['TG_BOT_TOKEN']
 # Telegram Chat ID to want to send the message to
@@ -47,7 +52,7 @@ def make_weather(city_code):
     WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/{city_code}'
     # https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
-    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气质量指数{aqi}"
+    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气量指数{aqi}"
 
     try:
         r = requests.get(WEATHER_API)
@@ -88,6 +93,38 @@ def get_poem():
         return DEFAULT_SENTENCE, DEFAULT_POEM
 
 
+# create pic
+# return url, the image will not be save to local environment
+def make_pic_from_openai(sentence):
+    """
+    return the link formd
+    """
+    # openai.api_key = OPENAI_API_KEY
+    client = OpenAI(
+        # defaults to os.environ.get("OPENAI_API_KEY")
+        api_key=OPENAI_API_KEY,
+    )
+    print(f'calling open ai for image creation...')
+    response = client.images.generate(
+        prompt=sentence, n=1, size="1024x1024", model="dall-e-3", style="vivid")
+
+    image_url = response.data[0].url
+    print(f'image_url:{image_url}')
+    print(f'image_revised_prompt: {response.data[0].revised_prompt}')
+    print(f'full response: {response}')
+    # s = requests.session()
+    # index = 0
+    # while os.path.exists(os.path.join(new_path, f"{index}.jpeg")):
+    #     index += 1
+    # with s.get(image_url, stream=True) as response:
+    #     # save response to file
+    #     response.raise_for_status()
+    #     with open(os.path.join(new_path, f"{index}.jpeg"), "wb") as output_file:
+    #         for chunk in response.iter_content(chunk_size=8192):
+    #             output_file.write(chunk)
+
+    return image_url, "Image Powered by OpenAI DELL.E-3"
+
 # create pic from bing image generator
 # once Dalle3 api is available, this might be retired.
 
@@ -114,4 +151,105 @@ def make_pic_from_bing(sentence, bing_cookie):
 
     return [], "Failed to generate images from Bing after multiple attempts"
 
-# try Dalle-3 from Bing first,
+# try Dalle-3 from Bing first, then OpenAI Image API
+def make_pic(sentence):
+    if BING_COOKIE:
+        try:
+            image_urls, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
+            if image_urls:
+                return image_urls, image_comment
+            else:
+                print('Bing image generation failed. Falling back to OpenAI.')
+        except Exception as e:
+            print(f'Image generation from Bing failed: {type(e)}')
+            print(type(e), e)
+            print('Falling back to OpenAI.')
+    else:
+        print('Bing Cookie is not set. Using OpenAI to generate Image.')
+    
+    image_url, image_comment = make_pic_from_openai(sentence)
+    return [image_url], image_comment
+
+
+def make_poem():
+    print(f'Start making poem...')
+    sentence, poem = get_poem()
+    sentence_processed = sentence.replace(
+        "，", " ").replace("。", " ").replace(".", " ")
+    print(f'Processed Sentence: {sentence_processed}')
+    image_urls, image_comment = make_pic(sentence_processed)
+    poem_message = f'今日诗词和配图：\r\n{poem}\r\n\r\n{image_comment}'
+
+    return image_urls, poem_message
+
+# send message to telegram
+# send image with caption if the image arg is not None
+
+
+def send_tg_message(tg_bot_token, tg_chat_id, message, images=None):
+    print(f'Sending to Chat {tg_chat_id}')
+    if images is None or len(images) == 0:
+        try:
+            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMessage".format(
+                tg_bot_token=tg_bot_token)
+            request_data = {'chat_id': tg_chat_id, 'text': message}
+            response = requests.post(request_url, data=request_data)
+            return response.json()
+        except Exception as e:
+            print("Failed sending message to Telegram Bot.")
+            print(type(e), e)
+            return ""
+    else:
+        try:
+            media_group = [{'type': 'photo', 'media': image} for image in images]
+            media_group[0]['caption'] = message  # 只在第一张图片上添加消息
+            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMediaGroup".format(
+                tg_bot_token=tg_bot_token)
+            request_data = {'chat_id': tg_chat_id, 'media': json.dumps(media_group)}
+            response = requests.post(request_url, data=request_data)
+            return response.json()
+        except Exception as e:
+            print("Failed sending message to Telegram Bot with images.")
+            print(type(e), e)
+            return ""
+
+# generate content from list of messages
+
+
+def make_message(messages):
+    message = "\r\n---\r\n".join(messages)
+    return message
+
+# generate content
+# send to tg
+
+
+def main():
+    print("Main started...")
+    # default process the poem, image and weather.
+    MESSAGES.append(make_weather(WEATHER_CITY_CODE))
+    image_urls, poem_message = make_poem()
+    MESSAGES.append(poem_message)
+
+    # --------
+    # Optional process - Daily Quota
+    if TIAN_API_KEY is not None and TIAN_API_KEY != '':
+        MESSAGES.append(make_quota(TIAN_API_KEY))
+    # --------
+    # --------
+    # Optional process - 每日待办事项 todoist
+    
+    # --------
+
+    # Build full content and send to TG
+    full_message = make_message(MESSAGES)
+    print("Message constructed...")
+    print()
+    print("Sending to Telegram...")
+    r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
+                             tg_chat_id=TG_CHAT_ID, message=full_message, images=image_urls)
+    print(r_json)
+
+
+if __name__ == "__main__":
+    main()
