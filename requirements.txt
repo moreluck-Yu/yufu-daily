@@ -2,7 +2,6 @@ PyGithub
 requests
 pendulum
 rich
-openai
 python-dotenv
 git+https://github.com/yihong0618/BingImageCreator.git
 todoist-api-python
