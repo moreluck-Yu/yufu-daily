@@ -47,6 +47,8 @@ def make_weather(city_code):
     
     try:
         r = requests.get(WEATHER_API)
+        print(f"Request status code: {r.status_code}")
+        print(f"API response: {r.json()}")
         if r.ok:
             weather = WEATHER_TEMPLATE.format(
                 date=r.json().get("data").get("forecast")[0].get("ymd"),
@@ -192,6 +194,7 @@ def make_message(messages):
 
 def main():
     print("Main started...")
+    print(f"WEATHER_CITY_CODE: {WEATHER_CITY_CODE}")
     MESSAGES.append(make_weather(WEATHER_CITY_CODE))
     image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
@@ -201,7 +204,7 @@ def main():
 
     full_message = make_message(MESSAGES)
     print("Message constructed...")
-    print()
+    print(full_message)
 
     r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
                             tg_chat_id=TG_CHAT_ID,
