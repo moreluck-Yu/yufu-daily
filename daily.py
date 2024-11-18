@@ -202,7 +202,7 @@ def make_message(messages):
 
 def main():
     print("Main started...")
-    MESSAGES.append(make_weather(WEATHER_CITY_CODE))
+    # MESSAGES.append(make_weather(WEATHER_CITY_CODE))
     image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
 
