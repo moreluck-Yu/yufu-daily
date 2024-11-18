@@ -25,7 +25,7 @@ TG_CHAT_ID = os.environ['TG_CHAT_ID']
 # Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
 # Shanghai 101020100
 # Hangzhou 101210101 by default
-WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE', '101180801')
+WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE', '')
 
 # -------------
 # Optional Settings. config in github secrets.
