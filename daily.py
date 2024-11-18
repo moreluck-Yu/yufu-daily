@@ -25,7 +25,7 @@ TG_CHAT_ID = os.environ['TG_CHAT_ID']
 # Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
 # Shanghai 101020100
 # Hangzhou 101210101 by default
-WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE', '101180801')
+WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE')
 
 # -------------
 # Optional Settings. config in github secrets.
@@ -39,7 +39,7 @@ BING_COOKIE = os.environ.get('BING_COOKIE', '')
 # Message list
 MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']
 
-def make_weather(city_code):
+def make_weather(city_code='101180801'):
     print(f'Start making weather...')
     WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/{city_code}'
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
@@ -47,8 +47,6 @@ def make_weather(city_code):
     
     try:
         r = requests.get(WEATHER_API)
-        print(f"Request status code: {r.status_code}")
-        print(f"API response: {r.json()}")
         if r.ok:
             weather = WEATHER_TEMPLATE.format(
                 date=r.json().get("data").get("forecast")[0].get("ymd"),
@@ -135,22 +133,32 @@ def make_pic_from_bing(sentence, bing_cookie):
     return [], "Failed to generate images from Bing after multiple attempts"
 
 def make_pic(sentence):
+    # 首先尝试使用Silicon Flow生成图片
+    try:
+        image_url, image_comment = make_pic_from_silicon(sentence)
+        return [image_url], image_comment
+    except Exception as e:
+        print(f'Silicon Flow图片生成失败: {type(e)}')
+        print(type(e), e)
+        print('尝试使用Bing作为备选。')
+    
+    # 如果Silicon Flow失败且设置了Bing Cookie,则尝试使用Bing
     if BING_COOKIE:
         try:
             image_urls, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
             if image_urls:
                 return image_urls, image_comment
             else:
-                print('Bing图片生成失败,切换到Silicon Flow.')
+                print('Bing图片生成也失败了。')
         except Exception as e:
             print(f'Bing图片生成出错: {type(e)}')
             print(type(e), e)
-            print('切换到Silicon Flow.')
     else:
-        print('未设置Bing Cookie,使用Silicon Flow生成图片.')
+        print('未设置Bing Cookie,无法使用Bing作为备选。')
     
-    image_url, image_comment = make_pic_from_silicon(sentence)
-    return [image_url], image_comment
+    # 如果两种方法都失败,返回空列表和错误消息
+    return [], "无法生成图片"
+
 
 def make_poem():
     print(f'Start making poem...')
@@ -194,7 +202,6 @@ def make_message(messages):
 
 def main():
     print("Main started...")
-    print(f"WEATHER_CITY_CODE: {WEATHER_CITY_CODE}")
     MESSAGES.append(make_weather(WEATHER_CITY_CODE))
     image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
@@ -204,7 +211,7 @@ def main():
 
     full_message = make_message(MESSAGES)
     print("Message constructed...")
-    print(full_message)
+    print()
 
     r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
                             tg_chat_id=TG_CHAT_ID,
