@@ -25,7 +25,7 @@ TG_CHAT_ID = os.environ['TG_CHAT_ID']
 # Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
 # Shanghai 101020100
 # Hangzhou 101210101 by default
-WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE')
+# WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE')
 
 # -------------
 # Optional Settings. config in github secrets.
@@ -39,9 +39,9 @@ BING_COOKIE = os.environ.get('BING_COOKIE', '')
 # Message list
 MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']
 
-def make_weather(city_code):
+def make_weather():
     print(f'Start making weather...')
-    WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/101180801'
+    WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/101020100'
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
     WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气量指数{aqi}"
     
