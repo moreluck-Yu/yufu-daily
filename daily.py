@@ -25,7 +25,7 @@ TG_CHAT_ID = os.environ['TG_CHAT_ID']
 # Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
 # Shanghai 101020100
 # Hangzhou 101210101 by default
-# WEATHER_CITY_CODE = os.environ.get('WEATHER_CITY_CODE')
+WEATHER_CITY_CODE = 101180801
 
 # -------------
 # Optional Settings. config in github secrets.
@@ -88,7 +88,7 @@ def make_pic_from_silicon(sentence):
     url = "https://api.siliconflow.cn/v1/images/generations"
     
     payload = {
-        "model": "black-forest-labs/FLUX.1-dev",
+        "model": "black-forest-labs/FLUX.1-schnell",
         "prompt": sentence,
         "image_size": "1024x1024"
     }
@@ -202,7 +202,7 @@ def make_message(messages):
 
 def main():
     print("Main started...")
-    # MESSAGES.append(make_weather(WEATHER_CITY_CODE))
+    MESSAGES.append(make_weather(WEATHER_CITY_CODE))
     image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
 
