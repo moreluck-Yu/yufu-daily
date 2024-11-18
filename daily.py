@@ -25,7 +25,7 @@ TG_CHAT_ID = os.environ['TG_CHAT_ID']
 # Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
 # Shanghai 101020100
 # Hangzhou 101210101 by default
-WEATHER_CITY_CODE = 101180801
+# WEATHER_CITY_CODE = 101180801
 
 # -------------
 # Optional Settings. config in github secrets.
@@ -202,7 +202,7 @@ def make_message(messages):
 
 def main():
     print("Main started...")
-    MESSAGES.append(make_weather(WEATHER_CITY_CODE))
+    MESSAGES.append(make_weather())
     image_urls, poem_message = make_poem()
     MESSAGES.append(poem_message)
 
