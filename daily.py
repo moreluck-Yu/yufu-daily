@@ -39,9 +39,9 @@ BING_COOKIE = os.environ.get('BING_COOKIE', '')
 # Message list
 MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']
 
-def make_weather(city_code='101180801'):
+def make_weather(city_code):
     print(f'Start making weather...')
-    WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/{city_code}'
+    WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/101180801'
     DEFAULT_WEATHER = "未查询到天气，好可惜啊"
     WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气量指数{aqi}"
     
