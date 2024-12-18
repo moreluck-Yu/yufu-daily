@@ -88,7 +88,7 @@ def make_pic_from_silicon(sentence):
     url = "https://api.siliconflow.cn/v1/images/generations"
     
     payload = {
-        "model": "black-forest-labs/FLUX.1-schnell",
+        "model": "black-forest-labs/FLUX.1-dev",
         "prompt": sentence,
         "image_size": "1024x1024"
     }
