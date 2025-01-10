@@ -1,95 +1,79 @@
 import argparse
 import os
-import time
 import random
-import json
+import sys
+import time
+from pathlib import Path
+
 import pendulum
 import requests
-from dotenv import load_dotenv
-from BingImageCreator import ImageGen
-from quota import make_quota
+from telegram import Bot
 
-load_dotenv()
+# 设置环境变量和常量
+SILICON_FLOW_API_KEY = os.getenv("SILICON_FLOW_API_KEY")
+BING_SUBSCRIPTION_KEY = os.getenv("BING_SUBSCRIPTION_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# required settings. config in github secrets
-# -------------
-# Silicon Flow API Key
-SILICON_FLOW_API_KEY = os.environ['SILICON_FLOW_API_KEY']
+# 检查必要的环境变量
+if not all([SILICON_FLOW_API_KEY, BING_SUBSCRIPTION_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID]):
+    print("请设置所有必要的环境变量")
+    sys.exit(1)
 
-# Telegram Bot Token
-TG_BOT_TOKEN = os.environ['TG_BOT_TOKEN']
-
-# Telegram Chat ID to want to send the message to
-TG_CHAT_ID = os.environ['TG_CHAT_ID']
-
-# Get Weather Information: https://github.com/baichengzhou/weather.api/blob/master/src/main/resources/citycode-2019-08-23.json to find the city code
-# Shanghai 101020100
-# Hangzhou 101210101 by default
-# WEATHER_CITY_CODE = 101180801
-
-# -------------
-# Optional Settings. config in github secrets.
-# -------------
-# 每日一句名人名言 - TIAN_API_KEY: https://www.tianapi.com/console/
-TIAN_API_KEY = os.environ.get('TIAN_API_KEY', '')
-
-# Bing Cookie if image to be generated from Dalle3. Leave empty to use Silicon Flow by default
-BING_COOKIE = os.environ.get('BING_COOKIE', '')
-
-# Message list
-MESSAGES = ['#每日诗歌\r\n又到了新的一天了！']
-
-def make_weather():
-    print(f'Start making weather...')
-    WEATHER_API = f'http://t.weather.sojson.com/api/weather/city/101180801'
-    DEFAULT_WEATHER = "未查询到天气，好可惜啊"
-    WEATHER_TEMPLATE = "今天是{date} {week}的天气是{type}，{high}，{low}，空气量指数{aqi}"
-    
+def get_one_sentence():
+    """获取一句诗词"""
+    url = "https://v1.jinrishici.com/all"
     try:
-        r = requests.get(WEATHER_API)
+        r = requests.get(url, timeout=10)
         if r.ok:
-            weather = WEATHER_TEMPLATE.format(
-                date=r.json().get("data").get("forecast")[0].get("ymd"),
-                week=r.json().get("data").get("forecast")[0].get("week"),
-                city=r.json().get("cityInfo").get("city"),
-                type=r.json().get("data").get("forecast")[0].get("type"),
-                high=r.json().get("data").get("forecast")[0].get("high"),
-                low=r.json().get("data").get("forecast")[0].get("low"),
-                aqi=r.json().get("data").get("forecast")[0].get("aqi")
-            )
-            return weather
-        return DEFAULT_WEATHER
-    except Exception as e:
-        print(type(e), e)
-        return DEFAULT_WEATHER
+            return r.json().get("content", "")
+        return ""
+    except:
+        return ""
 
-def get_poem():
-    SENTENCE_API = "https://v1.jinrishici.com/all"
-    DEFAULT_SENTENCE = "落日净残阳 雾水拈薄浪 "
-    DEFAULT_POEM = "落日净残阳，雾水拈薄浪。 —— Xiaowen.Z / 卜算子"
-    POEM_TEMPLATE = "{sentence} —— {author} / {origin}"
+def optimize_prompt(sentence):
+    """使用 Qwen 模型优化提示词"""
+    url = "https://api.siliconflow.cn/v1/chat/completions"
     
+    payload = {
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "messages": [
+            {
+                "role": "user",
+                "content": f"revise `{sentence}` to a stable diffusion prompt"
+            }
+        ]
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {SILICON_FLOW_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
     try:
-        r = requests.get(SENTENCE_API)
-        if r.ok:
-            sentence = r.json().get("content")
-            poem = POEM_TEMPLATE.format(
-                sentence=sentence,
-                author=r.json().get("author"),
-                origin=r.json().get("origin")
-            )
-            return sentence, poem
-        return DEFAULT_SENTENCE, DEFAULT_POEM
+        response = requests.post(url, json=payload, headers=headers)
+        if response.ok:
+            result = response.json()
+            optimized_sentence = result['choices'][0]['message']['content']
+            print(f'优化后的提示词: {optimized_sentence}')
+            return optimized_sentence
+        else:
+            print(f'提示词优化失败: {response.status_code} - {response.text}')
+            return sentence
     except Exception as e:
-        print(type(e), e)
-        return DEFAULT_SENTENCE, DEFAULT_POEM
+        print(f'提示词优化失败: {str(e)}')
+        return sentence
 
 def make_pic_from_silicon(sentence):
+    """使用 Silicon Flow API 生成图片"""
     url = "https://api.siliconflow.cn/v1/images/generations"
+    
+    # 优化提示词
+    optimized_prompt = optimize_prompt(sentence)
     
     payload = {
         "model": "black-forest-labs/FLUX.1-dev",
-        "prompt": sentence,
+        "prompt": optimized_prompt,
         "num_inference_steps": 20,
         "prompt_enhancement": True,
         "image_size": "1024x1024"
@@ -113,113 +97,95 @@ def make_pic_from_silicon(sentence):
         print(f'发生错误: {response.status_code} - {response.text}')
         raise Exception("图片生成失败")
 
-def make_pic_from_bing(sentence, bing_cookie):
-    max_retries = 3
-    retry_delay = 5  # seconds
-    
-    for attempt in range(max_retries):
+def make_pic_from_bing(sentence):
+    """使用 Bing DALL-E-3 生成图片"""
+    endpoint = "https://api.bing.microsoft.com/v1/images/generations"
+    headers = {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": BING_SUBSCRIPTION_KEY,
+    }
+    data = {"prompt": sentence}
+    for _ in range(3):
         try:
-            i = ImageGen(bing_cookie)
-            images = i.get_images(sentence)
-            if images and len(images) > 0:
-                return images, "Images Powered by Bing DALL-E-3"
-            else:
-                print(f"No images generated on attempt {attempt + 1}")
+            response = requests.post(endpoint, headers=headers, json=data, timeout=60)
+            if response.ok:
+                result = response.json()
+                return result["urls"][0], "图片由 Bing DALL-E-3 提供支持"
         except Exception as e:
-            print(f"Error on attempt {attempt + 1}: {str(e)}")
-        
-        if attempt < max_retries - 1:
-            delay = retry_delay + random.uniform(0, 2)
-            print(f"Retrying in {delay:.2f} seconds...")
-            time.sleep(delay)
-    return [], "Failed to generate images from Bing after multiple attempts"
+            print(str(e))
+            time.sleep(2)
+    raise Exception("图片生成失败")
 
-def make_pic(sentence):
-    # 首先尝试使用Silicon Flow生成图片
+def get_weather_info():
+    """获取天气信息"""
     try:
-        image_url, image_comment = make_pic_from_silicon(sentence)
-        return [image_url], image_comment
+        # 使用和风天气 API 获取天气信息
+        key = os.getenv("WEATHER_KEY", "")
+        location = os.getenv("WEATHER_LOCATION", "")
+        if not key or not location:
+            return None
+        url = f"https://devapi.qweather.com/v7/weather/now?key={key}&location={location}"
+        r = requests.get(url, timeout=10)
+        if r.ok:
+            result = r.json()
+            if result.get("code") == "200":
+                now = result["now"]
+                return f'当前温度{now["temp"]}°C, {now["text"]}, 体感温度{now["feelsLike"]}°C, 相对湿度{now["humidity"]}%, {now["windDir"]}{now["windScale"]}级'
+    except:
+        pass
+    return None
+
+def send_to_telegram(sentence, pic_url, weather_info=None, pic_info=""):
+    """发送消息到 Telegram"""
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    if weather_info:
+        message = f"{sentence}\n\n{weather_info}"
+    else:
+        message = sentence
+    
+    if pic_info:
+        message = f"{message}\n\n{pic_info}"
+    
+    try:
+        bot.send_photo(
+            chat_id=TELEGRAM_CHAT_ID,
+            photo=pic_url,
+            caption=message
+        )
+        return True
     except Exception as e:
-        print(f'Silicon Flow图片生成失败: {type(e)}')
-        print(type(e), e)
-        print('尝试使用Bing作为备选。')
-    
-    # 如果Silicon Flow失败且设置了Bing Cookie,则尝试使用Bing
-    if BING_COOKIE:
-        try:
-            image_urls, image_comment = make_pic_from_bing(sentence, BING_COOKIE)
-            if image_urls:
-                return image_urls, image_comment
-            else:
-                print('Bing图片生成也失败了。')
-        except Exception as e:
-            print(f'Bing图片生成出错: {type(e)}')
-            print(type(e), e)
-    else:
-        print('未设置Bing Cookie,无法使用Bing作为备选。')
-    
-    # 如果两种方法都失败,返回空列表和错误消息
-    return [], "无法生成图片"
-
-
-def make_poem():
-    print(f'Start making poem...')
-    sentence, poem = get_poem()
-    sentence_processed = sentence.replace("，", " ").replace("。", " ").replace(".", " ")
-    print(f'Processed Sentence: {sentence_processed}')
-    image_urls, image_comment = make_pic(sentence_processed)
-    poem_message = f'今日诗词和配图：\r\n{poem}\r\n\r\n{image_comment}'
-    return image_urls, poem_message
-
-def send_tg_message(tg_bot_token, tg_chat_id, message, images=None):
-    print(f'Sending to Chat {tg_chat_id}')
-    if images is None or len(images) == 0:
-        try:
-            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMessage".format(
-                tg_bot_token=tg_bot_token)
-            request_data = {'chat_id': tg_chat_id, 'text': message}
-            response = requests.post(request_url, data=request_data)
-            return response.json()
-        except Exception as e:
-            print("Failed sending message to Telegram Bot.")
-            print(type(e), e)
-            return ""
-    else:
-        try:
-            media_group = [{'type': 'photo', 'media': image} for image in images]
-            media_group[0]['caption'] = message  # 只在第一张图片上添加消息
-            request_url = "https://api.telegram.org/bot{tg_bot_token}/sendMediaGroup".format(
-                tg_bot_token=tg_bot_token)
-            request_data = {'chat_id': tg_chat_id, 'media': json.dumps(media_group)}
-            response = requests.post(request_url, data=request_data)
-            return response.json()
-        except Exception as e:
-            print("Failed sending message to Telegram Bot with images.")
-            print(type(e), e)
-            return ""
-
-def make_message(messages):
-    message = "\r\n---\r\n".join(messages)
-    return message
+        print(f"发送失败: {str(e)}")
+        return False
 
 def main():
-    print("Main started...")
-    MESSAGES.append(make_weather())
-    image_urls, poem_message = make_poem()
-    MESSAGES.append(poem_message)
-
-    if TIAN_API_KEY is not None and TIAN_API_KEY != '':
-        MESSAGES.append(make_quota(TIAN_API_KEY))
-
-    full_message = make_message(MESSAGES)
-    print("Message constructed...")
-    print()
-
-    r_json = send_tg_message(tg_bot_token=TG_BOT_TOKEN,
-                            tg_chat_id=TG_CHAT_ID,
-                            message=full_message,
-                            images=image_urls)
-    print(r_json)
+    """主函数"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_bing", action="store_true", help="使用 Bing DALL-E-3 替代 Silicon Flow")
+    args = parser.parse_args()
+    
+    sentence = get_one_sentence()
+    if not sentence:
+        print("获取诗句失败")
+        return
+    print(f"获取到的诗句: {sentence}")
+    
+    try:
+        if args.use_bing:
+            pic_url, pic_info = make_pic_from_bing(sentence)
+        else:
+            pic_url, pic_info = make_pic_from_silicon(sentence)
+        print(f"生成的图片 URL: {pic_url}")
+        
+        weather_info = get_weather_info()
+        if weather_info:
+            print(f"天气信息: {weather_info}")
+        
+        if send_to_telegram(sentence, pic_url, weather_info, pic_info):
+            print("发送成功")
+        else:
+            print("发送失败")
+    except Exception as e:
+        print(f"发生错误: {str(e)}")
 
 if __name__ == "__main__":
     main()
