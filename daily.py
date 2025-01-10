@@ -90,6 +90,8 @@ def make_pic_from_silicon(sentence):
     payload = {
         "model": "black-forest-labs/FLUX.1-dev",
         "prompt": sentence,
+        "num_inference_steps": 20,
+        "prompt_enhancement": True,
         "image_size": "1024x1024"
     }
     
